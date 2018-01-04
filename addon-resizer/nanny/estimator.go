@@ -38,8 +38,8 @@ type LinearEstimator struct {
 	Resources []Resource
 }
 
-func (e LinearEstimator) scaleWithNodes(numNodes uint64) *corev1.ResourceRequirements {
-	return calculateResources(numNodes, e.Resources)
+func (e LinearEstimator) scaleWithNodes(numNodes uint64) (*corev1.ResourceRequirements, *corev1.ResourceRequirements) {
+	return calculateResources(numNodes, e.Resources), calculateResources(numNodes+1, e.Resources)
 }
 
 // ExponentialEstimator estimates the amount of resources in the way that
@@ -50,12 +50,14 @@ type ExponentialEstimator struct {
 	ScaleFactor float64
 }
 
-func (e ExponentialEstimator) scaleWithNodes(numNodes uint64) *corev1.ResourceRequirements {
+func (e ExponentialEstimator) scaleWithNodes(numNodes uint64) (*corev1.ResourceRequirements, *corev1.ResourceRequirements) {
 	n := uint64(16)
+	nn := uint64(float64(n)*e.ScaleFactor + eps)
 	for n < numNodes {
-		n = uint64(float64(n)*e.ScaleFactor + eps)
+		n = nn
+		nn = uint64(float64(n)*e.ScaleFactor + eps)
 	}
-	return calculateResources(n, e.Resources)
+	return calculateResources(n, e.Resources), calculateResources(nn, e.Resources)
 }
 
 func calculateResources(numNodes uint64, resources []Resource) *corev1.ResourceRequirements {

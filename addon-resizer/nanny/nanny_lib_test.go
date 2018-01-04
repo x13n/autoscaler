@@ -70,6 +70,11 @@ var (
 		"memory":  resource.MustParse("200Mi"),
 		"storage": resource.MustParse("10Gi"),
 	}
+	notMatchingAnything = corev1.ResourceList{
+		"cpu":     resource.MustParse("1234"),
+		"memory":  resource.MustParse("0.01Mi"),
+		"storage": resource.MustParse("999Ti"),
+	}
 )
 
 func TestCheckResources(t *testing.T) {
@@ -184,8 +189,14 @@ func TestShouldOverwriteResources(t *testing.T) {
 		{10, noStorage, siNoStorage, false},
 	}
 	for i, tc := range testCases {
-		if tc.want != shouldOverwriteResources(tc.th, tc.x, tc.y, tc.x, tc.x) {
-			t.Errorf("shouldOverwriteResources got %t, want %t for test case %d.", !tc.want, tc.want, i)
+		if tc.want != shouldOverwriteResources(tc.th, tc.x, tc.x, tc.y, tc.y, tc.y, tc.y) {
+			t.Errorf("shouldOverwriteResources got %t, want %t for test case %d (with expected = acceptable).", !tc.want, tc.want, i)
+		}
+		if tc.want != shouldOverwriteResources(tc.th, tc.x, tc.x, notMatchingAnything, notMatchingAnything, tc.y, tc.y) {
+			t.Errorf("shouldOverwriteResources got %t, want %t for test case %d (when only acceptable was checked).", !tc.want, tc.want, i)
+		}
+		if tc.want != shouldOverwriteResources(tc.th, tc.x, tc.x, tc.y, tc.y, notMatchingAnything, notMatchingAnything) {
+			t.Errorf("shouldOverwriteResources got %t, want %t for test case %d (when only expected was checked).", !tc.want, tc.want, i)
 		}
 	}
 }

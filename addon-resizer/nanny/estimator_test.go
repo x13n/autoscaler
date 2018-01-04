@@ -147,6 +147,23 @@ var (
 		"cpu":    resource.MustParse("0.3"),
 		"memory": resource.MustParse("30Mi"),
 	}
+	singleNodeResources = corev1.ResourceList{
+		"cpu":     resource.MustParse("1.3"),
+		"memory":  resource.MustParse("31Mi"),
+		"storage": resource.MustParse("31Gi"),
+	}
+	noCPUSingleNodeResources = corev1.ResourceList{
+		"memory":  resource.MustParse("31Mi"),
+		"storage": resource.MustParse("31Gi"),
+	}
+	noMemorySingleNodeResources = corev1.ResourceList{
+		"cpu":     resource.MustParse("1.3"),
+		"storage": resource.MustParse("31Gi"),
+	}
+	noStorageSingleNodeResources = corev1.ResourceList{
+		"cpu":    resource.MustParse("1.3"),
+		"memory": resource.MustParse("31Mi"),
+	}
 	threeNodeResources = corev1.ResourceList{
 		"cpu":     resource.MustParse("3.3"),
 		"memory":  resource.MustParse("33Mi"),
@@ -167,8 +184,31 @@ var (
 	threeNodeLessThanMilliResources = corev1.ResourceList{
 		"cpu": resource.MustParse("0.3015"),
 	}
-	threeNodeLessThanMilliExpResources = corev1.ResourceList{
+	sixteenNodeLessThanMilliExpResources = corev1.ResourceList{
 		"cpu": resource.MustParse("0.308"),
+	}
+	fourNodeResources = corev1.ResourceList{
+		"cpu":     resource.MustParse("4.3"),
+		"memory":  resource.MustParse("34Mi"),
+		"storage": resource.MustParse("34Gi"),
+	}
+	fourNodeNoCPUResources = corev1.ResourceList{
+		"memory":  resource.MustParse("34Mi"),
+		"storage": resource.MustParse("34Gi"),
+	}
+	fourNodeNoMemoryResources = corev1.ResourceList{
+		"cpu":     resource.MustParse("4.3"),
+		"storage": resource.MustParse("34Gi"),
+	}
+	fourNodeNoStorageResources = corev1.ResourceList{
+		"cpu":    resource.MustParse("4.3"),
+		"memory": resource.MustParse("34Mi"),
+	}
+	fourNodeLessThanMilliResources = corev1.ResourceList{
+		"cpu": resource.MustParse("0.302"),
+	}
+	twentyFourNodeLessThanMilliExpResources = corev1.ResourceList{
+		"cpu": resource.MustParse("0.312"),
 	}
 	noResources = corev1.ResourceList{}
 
@@ -177,10 +217,25 @@ var (
 		"memory":  resource.MustParse("46Mi"),
 		"storage": resource.MustParse("46Gi"),
 	}
+	seventeenNodeResources = corev1.ResourceList{
+		"cpu":     resource.MustParse("17.3"),
+		"memory":  resource.MustParse("47Mi"),
+		"storage": resource.MustParse("47Gi"),
+	}
 	twentyFourNodeResources = corev1.ResourceList{
 		"cpu":     resource.MustParse("24.3"),
 		"memory":  resource.MustParse("54Mi"),
 		"storage": resource.MustParse("54Gi"),
+	}
+	twentyFiveNodeResources = corev1.ResourceList{
+		"cpu":     resource.MustParse("25.3"),
+		"memory":  resource.MustParse("55Mi"),
+		"storage": resource.MustParse("55Gi"),
+	}
+	thirtySixNodeResources = corev1.ResourceList{
+		"cpu":     resource.MustParse("36.3"),
+		"memory":  resource.MustParse("66Mi"),
+		"storage": resource.MustParse("66Gi"),
 	}
 )
 
@@ -194,48 +249,48 @@ func verifyResources(t *testing.T, kind string, got, want corev1.ResourceList) {
 			t.Errorf("missing resource %s in %s", res, kind)
 		}
 		if val.Cmp(actVal) != 0 {
-			t.Errorf("not equal resource %s in %s, got: %+v, want: %+v", res, kind, actVal, val)
+			t.Errorf("not equal resource %s in %s, got: %+v, want: %+v", res, kind, actVal.String(), val.String())
 		}
 	}
 }
 
 func TestEstimateResources(t *testing.T) {
 	testCases := []struct {
-		e        ResourceEstimator
-		numNodes uint64
-		limits   corev1.ResourceList
-		requests corev1.ResourceList
+		e                  ResourceEstimator
+		numNodes           uint64
+		expectedLimits     corev1.ResourceList
+		expectedRequests   corev1.ResourceList
+		acceptableLimits   corev1.ResourceList
+		acceptableRequests corev1.ResourceList
 	}{
-		{fullEstimator, 0, baseResources, baseResources},
-		{fullEstimator, 3, threeNodeResources, threeNodeResources},
-		{fullEstimator, 16, sixteenNodeResources, sixteenNodeResources},
-		{fullEstimator, 24, twentyFourNodeResources, twentyFourNodeResources},
-		{noCPUEstimator, 0, noCPUBaseResources, noCPUBaseResources},
-		{noCPUEstimator, 3, threeNodeNoCPUResources, threeNodeNoCPUResources},
-		{noMemoryEstimator, 0, noMemoryBaseResources, noMemoryBaseResources},
-		{noMemoryEstimator, 3, threeNodeNoMemoryResources, threeNodeNoMemoryResources},
-		{noStorageEstimator, 0, noStorageBaseResources, noStorageBaseResources},
-		{noStorageEstimator, 3, threeNodeNoStorageResources, threeNodeNoStorageResources},
-		{lessThanMilliEstimator, 3, threeNodeLessThanMilliResources, threeNodeLessThanMilliResources},
-		{emptyEstimator, 0, noResources, noResources},
-		{emptyEstimator, 3, noResources, noResources},
-		{exponentialEstimator, 0, sixteenNodeResources, sixteenNodeResources},
-		{exponentialEstimator, 3, sixteenNodeResources, sixteenNodeResources},
-		{exponentialEstimator, 10, sixteenNodeResources, sixteenNodeResources},
-		{exponentialEstimator, 16, sixteenNodeResources, sixteenNodeResources},
-		{exponentialEstimator, 17, twentyFourNodeResources, twentyFourNodeResources},
-		{exponentialEstimator, 20, twentyFourNodeResources, twentyFourNodeResources},
-		{exponentialEstimator, 24, twentyFourNodeResources, twentyFourNodeResources},
-		{exponentialLessThanMilliEstimator, 3, threeNodeLessThanMilliExpResources, threeNodeLessThanMilliExpResources},
+		{fullEstimator, 0, baseResources, baseResources, singleNodeResources, singleNodeResources},
+		{fullEstimator, 3, threeNodeResources, threeNodeResources, fourNodeResources, fourNodeResources},
+		{fullEstimator, 16, sixteenNodeResources, sixteenNodeResources, seventeenNodeResources, seventeenNodeResources},
+		{fullEstimator, 24, twentyFourNodeResources, twentyFourNodeResources, twentyFiveNodeResources, twentyFiveNodeResources},
+		{noCPUEstimator, 0, noCPUBaseResources, noCPUBaseResources, noCPUSingleNodeResources, noCPUSingleNodeResources},
+		{noCPUEstimator, 3, threeNodeNoCPUResources, threeNodeNoCPUResources, fourNodeNoCPUResources, fourNodeNoCPUResources},
+		{noMemoryEstimator, 0, noMemoryBaseResources, noMemoryBaseResources, noMemorySingleNodeResources, noMemorySingleNodeResources},
+		{noMemoryEstimator, 3, threeNodeNoMemoryResources, threeNodeNoMemoryResources, fourNodeNoMemoryResources, fourNodeNoMemoryResources},
+		{noStorageEstimator, 0, noStorageBaseResources, noStorageBaseResources, noStorageSingleNodeResources, noStorageSingleNodeResources},
+		{noStorageEstimator, 3, threeNodeNoStorageResources, threeNodeNoStorageResources, fourNodeNoStorageResources, fourNodeNoStorageResources},
+		{lessThanMilliEstimator, 3, threeNodeLessThanMilliResources, threeNodeLessThanMilliResources, fourNodeLessThanMilliResources, fourNodeLessThanMilliResources},
+		{emptyEstimator, 0, noResources, noResources, noResources, noResources},
+		{emptyEstimator, 3, noResources, noResources, noResources, noResources},
+		{exponentialEstimator, 0, sixteenNodeResources, sixteenNodeResources, twentyFourNodeResources, twentyFourNodeResources},
+		{exponentialEstimator, 3, sixteenNodeResources, sixteenNodeResources, twentyFourNodeResources, twentyFourNodeResources},
+		{exponentialEstimator, 10, sixteenNodeResources, sixteenNodeResources, twentyFourNodeResources, twentyFourNodeResources},
+		{exponentialEstimator, 16, sixteenNodeResources, sixteenNodeResources, twentyFourNodeResources, twentyFourNodeResources},
+		{exponentialEstimator, 17, twentyFourNodeResources, twentyFourNodeResources, thirtySixNodeResources, thirtySixNodeResources},
+		{exponentialEstimator, 20, twentyFourNodeResources, twentyFourNodeResources, thirtySixNodeResources, thirtySixNodeResources},
+		{exponentialEstimator, 24, twentyFourNodeResources, twentyFourNodeResources, thirtySixNodeResources, thirtySixNodeResources},
+		{exponentialLessThanMilliEstimator, 3, sixteenNodeLessThanMilliExpResources, sixteenNodeLessThanMilliExpResources, twentyFourNodeLessThanMilliExpResources, twentyFourNodeLessThanMilliExpResources},
 	}
 
 	for _, tc := range testCases {
-		got := tc.e.scaleWithNodes(tc.numNodes)
-		want := &corev1.ResourceRequirements{
-			Limits:   tc.limits,
-			Requests: tc.requests,
-		}
-		verifyResources(t, "limits", got.Limits, want.Limits)
-		verifyResources(t, "requests", got.Requests, want.Limits)
+		expected, acceptable := tc.e.scaleWithNodes(tc.numNodes)
+		verifyResources(t, "expected limits", expected.Limits, tc.expectedLimits)
+		verifyResources(t, "expected requests", expected.Requests, tc.expectedRequests)
+		verifyResources(t, "acceptable limits", acceptable.Limits, tc.acceptableLimits)
+		verifyResources(t, "acceptable requests", acceptable.Requests, tc.acceptableRequests)
 	}
 }

@@ -50,13 +50,17 @@ func checkResource(threshold int64, actual, expected corev1.ResourceList, res co
 // shouldOverwriteResources determines if we should over-write the container's
 // resource limits. We'll over-write the resource limits if the limited
 // resources are different, or if any limit is violated by a threshold.
-func shouldOverwriteResources(threshold int64, limits, reqs, expLimits, expReqs corev1.ResourceList) bool {
-	return checkResource(threshold, limits, expLimits, corev1.ResourceCPU) ||
-		checkResource(threshold, limits, expLimits, corev1.ResourceMemory) ||
-		checkResource(threshold, limits, expLimits, corev1.ResourceStorage) ||
-		checkResource(threshold, reqs, expReqs, corev1.ResourceCPU) ||
-		checkResource(threshold, reqs, expReqs, corev1.ResourceMemory) ||
-		checkResource(threshold, reqs, expReqs, corev1.ResourceStorage)
+func shouldOverwriteResources(threshold int64, limits, reqs, expLimits, expReqs, accLimits, accReqs corev1.ResourceList) bool {
+	resourceTypes := []corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory, corev1.ResourceStorage}
+	for _, resourceType := range resourceTypes {
+		if checkResource(threshold, reqs, expReqs, resourceType) && checkResource(threshold, reqs, accReqs, resourceType) {
+			return true
+		}
+		if checkResource(threshold, limits, expLimits, resourceType) && checkResource(threshold, limits, accLimits, resourceType) {
+			return true
+		}
+	}
+	return false
 }
 
 // KubernetesClient is an object that performs the nanny's requisite interactions with Kubernetes.
@@ -66,9 +70,13 @@ type KubernetesClient interface {
 	UpdateDeployment(resources *corev1.ResourceRequirements) error
 }
 
-// ResourceEstimator estimates ResourceRequirements for a given criteria.
+// ResourceEstimator estimates ResourceRequirements for a given criteria. A
+// tuple of two values is returned. First one is a set of expected resource
+// requirements and the second one is a set of acceptable resource
+// requirements. If the actual values won't match either of them, the expected
+// ones will be set.
 type ResourceEstimator interface {
-	scaleWithNodes(numNodes uint64) *corev1.ResourceRequirements
+	scaleWithNodes(numNodes uint64) (*corev1.ResourceRequirements, *corev1.ResourceRequirements)
 }
 
 // PollAPIServer periodically counts the number of nodes, estimates the expected
@@ -97,10 +105,10 @@ func PollAPIServer(k8s KubernetesClient, est ResourceEstimator, contName string,
 		}
 
 		// Get the expected resource limits.
-		expResources := est.scaleWithNodes(num)
+		expResources, acceptableResources := est.scaleWithNodes(num)
 
 		// If there's a difference, go ahead and set the new values.
-		if !shouldOverwriteResources(int64(threshold), resources.Limits, resources.Requests, expResources.Limits, expResources.Requests) {
+		if !shouldOverwriteResources(int64(threshold), resources.Limits, resources.Requests, expResources.Limits, expResources.Requests, acceptableResources.Limits, acceptableResources.Requests) {
 			log.V(4).Infof("Resources are within the expected limits. Actual: %+v Expected: %+v", *resources, *expResources)
 			continue
 		}
